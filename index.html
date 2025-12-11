@@ -1,16 +1,25 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visual Data Analysis - RealOrAI</title>
-    <!-- 字体 -->
+    <title>r/RealOrAI - Visual Data Analysis</title>
+
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <!-- ECharts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    
+
+    <!-- ECharts WordCloud Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+
+    <!-- Data Configuration -->
+    <script src="visualization_data_config.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
@@ -33,6 +42,7 @@
             }
         }
     </script>
+
     <style>
         body { background-color: #F6F6F2; color: #333; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -42,26 +52,53 @@
             border: 1px solid rgba(255, 255, 255, 0.5);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
-        
-        /* Analysis Styles */
-        .blur-text-reveal {
-            position: relative;
-            overflow: hidden;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s;
+
+        /* Enhanced Table Styles */
+        .stats-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
         }
-        .blur-text-reveal::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: rgba(255,255,255,0.4);
-            backdrop-filter: blur(4px);
-            transition: opacity 0.3s;
+        .stats-table th {
+            background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #4b5563;
+            border-bottom: 2px solid #567C4D;
+            position: sticky;
+            top: 0;
         }
-        .blur-text-reveal:hover::after { opacity: 0; }
-        
-        /* Animation & Interaction */
+        .stats-table th:first-child {
+            border-top-left-radius: 8px;
+        }
+        .stats-table th:last-child {
+            border-top-right-radius: 8px;
+        }
+        .stats-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 13px;
+            color: #374151;
+        }
+        .stats-table tbody tr {
+            transition: all 0.2s ease;
+        }
+        .stats-table tbody tr:hover {
+            background: #f0fdf4;
+            transform: translateX(2px);
+        }
+        .stats-table tbody tr:last-child td:first-child {
+            border-bottom-left-radius: 8px;
+        }
+        .stats-table tbody tr:last-child td:last-child {
+            border-bottom-right-radius: 8px;
+        }
+
+        /* Annotation Styles */
         .annotation-box {
             position: absolute;
             border: 2px solid;
@@ -73,40 +110,29 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
         }
         .annotation-box.active { opacity: 1; transform: scale(1); }
-        .comment-item { transition: all 0.3s; opacity: 0.5; transform: translateX(-10px); }
-        .comment-item.active { opacity: 1; transform: translateX(0); background: #FFF; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 
-        .vis-point {
-            position: absolute;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        .comment-item {
+            transition: all 0.3s;
+            opacity: 0.5;
+            transform: translateX(-10px);
+        }
+        .comment-item.active {
+            opacity: 1;
+            transform: translateX(0);
+            background: #FFF;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        /* Strategy Card Styles */
+        .strategy-card {
+            transition: all 0.3s;
             cursor: pointer;
-            z-index: 10;
-            transition: transform 0.2s;
         }
-        .vis-point:hover { transform: scale(1.5); }
-        .vis-line {
-            position: absolute;
-            height: 1px;
-            background: rgba(0,0,0,0.3);
-            transform-origin: left center;
-            z-index: 1;
-            pointer-events: none;
+        .strategy-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
         }
-        .vis-card {
-            position: absolute;
-            background: rgba(255,255,255,0.9);
-            backdrop-filter: blur(8px);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            z-index: 5;
-            min-width: 120px;
-        }
+
 
         /* GAME STYLES */
         .target-image { transition: filter 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -135,43 +161,79 @@
             </div>
         </div>
         <nav class="flex gap-2">
-            <button onclick="switchView('analysis')" id="btn-nav-analysis" class="px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded shadow-sm transition-colors">ANALYSIS DASHBOARD</button>
-            <button onclick="switchView('game')" id="btn-nav-game" class="px-4 py-1.5 text-xs font-semibold text-secondary hover:text-primary transition-colors hover:bg-white rounded">GAME PREVIEW</button>
+            <button onclick="switchView('analysis')" id="btn-nav-analysis" class="px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded shadow-sm transition-colors">ANALYSIS</button>
+            <button onclick="switchView('game')" id="btn-nav-game" class="px-4 py-1.5 text-xs font-semibold text-secondary hover:text-primary transition-colors hover:bg-white rounded">GAME</button>
         </nav>
     </header>
 
     <!-- MAIN CONTAINER -->
     <main class="flex-1 relative overflow-hidden">
-        
-        <!-- === VIEW 1: ANALYSIS DASHBOARD === -->
+
+        <!-- ===== VIEW 1: ANALYSIS DASHBOARD ===== -->
         <div id="view-analysis" class="absolute inset-0 overflow-y-auto scroll-smooth">
-            <div class="max-w-5xl mx-auto p-8 space-y-16 pb-32">
-                
-                <!-- SECTION 1: OVERALL VIEW -->
-                <section>
+            <div class="max-w-7xl mx-auto p-8 space-y-16 pb-32">
+
+                <!-- ===== SECTION 1: OVERALL VIEW ===== -->
+                <section id="overall">
                     <div class="border-l-4 border-primary pl-4 mb-8">
-                        <h1 class="text-2xl font-bold text-gray-800">一、Overall View (Global Statistics)</h1>
-                        <p class="text-sm text-gray-500 mt-1">Data Source: All 920 Posts | Scope: Global Trends</p>
+                        <h1 class="text-2xl font-bold text-gray-800">Overall View - Global Statistics</h1>
+                        <p class="text-sm text-gray-500 mt-1">Data Source: All 920 Posts | Time Period: Oct 2024 - Jan 2025</p>
+                    </div>
+
+                    <!-- 1.0 DESCRIPTIVE STATISTICS TABLES -->
+                    <div class="mb-12">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Descriptive Statistics Summary</h2>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            <!-- Basic Stats Table -->
+                            <div class="bg-white rounded-lg border border-border shadow-sm overflow-hidden">
+                                <div class="bg-gradient-to-r from-primary/10 to-primary/5 px-5 py-3 border-b-2 border-primary/20">
+                                    <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wide">📊 Basic Statistics</h3>
+                                </div>
+                                <table class="stats-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Metric</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="basic-stats-tbody"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- Verdict Distribution Table -->
+                            <div class="bg-white rounded-lg border border-border shadow-sm overflow-hidden">
+                                <div class="bg-gradient-to-r from-primary/10 to-primary/5 px-5 py-3 border-b-2 border-primary/20">
+                                    <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wide">🤖 Bot Verdict Distribution</h3>
+                                </div>
+                                <table class="stats-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Verdict</th>
+                                            <th>Count</th>
+                                            <th>Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="verdict-stats-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
                     </div>
 
                     <!-- 1.1 Post Simulation -->
                     <div class="mb-12">
-                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">1.1 Discourse Simulation: How Users Argue</h2>
+                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">How Users Argue - Discourse Simulation</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-0 border border-border rounded-lg overflow-hidden bg-white shadow-sm h-[450px]">
                             <!-- Left: Image Canvas -->
                             <div class="relative bg-gray-100 flex items-center justify-center overflow-hidden group">
-                                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=988&auto=format&fit=crop" class="w-full h-full object-cover opacity-90">
-                                
+                                <img id="sim-image" src="" class="w-full h-full object-cover opacity-90">
+
                                 <!-- Dynamic Annotations -->
-                                <div id="anno-hand" class="annotation-box border-red-500" style="top: 65%; left: 30%; width: 15%; height: 15%;">
-                                    <span class="absolute -top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap">Fingers (Anomaly)</span>
-                                </div>
-                                <div id="anno-light" class="annotation-box border-blue-500" style="top: 20%; left: 60%; width: 20%; height: 20%;">
-                                    <span class="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap">Lighting (Natural)</span>
-                                </div>
-                                
+                                <div id="sim-annotations"></div>
+
                                 <div class="absolute bottom-4 left-4 bg-black/60 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">
-                                    模拟 Reddit 帖子视图
+                                    Simulated Reddit Post View
                                 </div>
                             </div>
 
@@ -180,238 +242,130 @@
                                 <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
                                     <div class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold">r/</div>
                                     <div>
-                                        <div class="font-bold text-sm">[HELP] Is this portrait AI? Hands look weird.</div>
+                                        <div class="font-bold text-sm" id="sim-title"></div>
                                         <div class="text-[10px] text-gray-400">u/user123 • 5 hours ago</div>
                                     </div>
                                 </div>
 
-                                <div class="flex-1 overflow-y-auto space-y-4 no-scrollbar pr-2" id="comment-stream">
-                                    <div class="comment-item p-3 rounded border border-transparent hover:border-gray-200" onmouseover="highlight('anno-hand')" onmouseout="unhighlight('anno-hand')">
-                                        <div class="flex justify-between items-center mb-1">
-                                            <span class="text-xs font-bold text-gray-600">u/pixel_peeper</span>
-                                            <span class="text-[10px] text-ai bg-red-50 px-1.5 py-0.5 rounded font-bold border border-red-100">FOR AI</span>
-                                        </div>
-                                        <p class="text-sm text-gray-700">The <span class="text-red-600 font-medium border-b border-red-300">fingers</span> are bending backwards. Anatomically impossible.</p>
-                                    </div>
-
-                                    <div class="comment-item p-3 rounded border border-transparent hover:border-gray-200" onmouseover="highlight('anno-light')" onmouseout="unhighlight('anno-light')">
-                                        <div class="flex justify-between items-center mb-1">
-                                            <span class="text-xs font-bold text-gray-600">u/light_master</span>
-                                            <span class="text-[10px] text-human bg-blue-50 px-1.5 py-0.5 rounded font-bold border border-blue-100">FOR HUMAN</span>
-                                        </div>
-                                        <p class="text-sm text-gray-700">Look at the <span class="text-blue-600 font-medium border-b border-blue-300">shadows</span> on the hair. The lighting fall-off is too consistent for v6.</p>
-                                    </div>
-                                </div>
+                                <div class="flex-1 overflow-y-auto space-y-4 no-scrollbar pr-2" id="comment-stream"></div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 1.2 Verdict Distribution -->
-                    <div class="mb-12">
-                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">1.2 Verdict Distribution (Based on Bot)</h2>
-                        <div class="glass-panel p-6 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-                            <div class="text-center md:text-left">
-                                <div class="text-5xl font-extrabold text-text mb-1">920</div>
-                                <div class="text-sm text-gray-500 font-medium uppercase tracking-wide">Total Posts</div>
-                            </div>
-                            <div class="col-span-2">
-                                <div id="chart-verdict" style="width: 100%; height: 80px;"></div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- 1.3 Descriptive Stats -->
-                    <div class="mb-12">
-                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">1.3 Descriptive Statistics</h2>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="bg-white p-5 rounded-lg border border-border shadow-sm">
-                                <h3 class="text-xs font-bold text-gray-500 mb-4">POSTING TIME DISTRIBUTION (UTC)</h3>
-                                <div id="chart-time" style="width: 100%; height: 250px;"></div>
-                            </div>
-                            <div class="bg-white p-5 rounded-lg border border-border shadow-sm relative">
-                                <div class="absolute top-4 right-4 z-10">
-                                    <span class="flex items-center gap-1 text-[10px] bg-red-50 text-ai px-2 py-1 rounded border border-red-100">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-ai"></span> High Controversy
-                                    </span>
-                                </div>
-                                <h3 class="text-xs font-bold text-gray-500 mb-4">ENGAGEMENT CROSS-ANALYSIS</h3>
-                                <div id="chart-scatter" style="width: 100%; height: 250px;"></div>
-                            </div>
-                        </div>
-                    </div>
-
+                    <!-- Summary -->
                     <div class="bg-primary/5 border border-primary/20 p-4 rounded-lg text-sm text-gray-700 leading-relaxed">
-                        <strong>总结结论：</strong>
-                        共分析 920 条帖子。其中 AI 判定占比 <strong>38.7%</strong>，Real 占比 24.9%。
-                        数据表明 AI 内容更容易引发高强度的社区讨论。发帖高峰集中在 19:00 UTC。
+                        <strong>Summary:</strong> <span id="overall-summary"></span>
                     </div>
                 </section>
 
                 <!-- DIVIDER -->
                 <div class="border-t-2 border-dashed border-gray-300"></div>
 
-                <!-- SECTION 2: DETAILED ANALYSIS -->
-                <section>
+                <!-- ===== SECTION 2: DETAILED ANALYSIS ===== -->
+                <section id="detailed">
                     <div class="border-l-4 border-human pl-4 mb-8">
-                        <h1 class="text-2xl font-bold text-gray-800">二、Detailed Rationale Analysis</h1>
-                        <p class="text-sm text-gray-500 mt-1">Data Source: 79 Valid Posts | Scope: Deep Dive</p>
+                        <h1 class="text-2xl font-bold text-gray-800">Detailed Rationale Analysis</h1>
+                        <p class="text-sm text-gray-500 mt-1">Data Source: 130 Valid Posts with Image Analysis | Total Rationales: 5,739 | Total Comments: 3,471</p>
                     </div>
 
-                    <!-- 2.1 Gallery & Word Cloud -->
+                    <!-- 2.1.1 Hot Entities Word Cloud (Standalone) -->
                     <div class="mb-16">
-                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">2.1 What images are discussed?</h2>
-                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[350px]">
-                            <div class="lg:col-span-7 flex gap-4 overflow-x-auto pb-2 no-scrollbar snap-x">
-                                <!-- Cards -->
-                                <div class="min-w-[200px] h-full relative rounded-lg overflow-hidden group snap-center border border-border shadow-sm">
-                                    <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400" class="w-full h-full object-cover">
-                                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100"></div>
-                                    <div class="absolute bottom-3 left-3 right-3 text-white">
-                                        <div class="flex gap-1 mb-2">
-                                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#Person</span>
-                                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#Portrait</span>
-                                        </div>
-                                        <span class="inline-block w-2 h-2 rounded-full bg-ai mr-1"></span> <span class="text-xs font-bold">AI Verdict</span>
-                                    </div>
-                                </div>
-                                <div class="min-w-[200px] h-full relative rounded-lg overflow-hidden group snap-center border border-border shadow-sm">
-                                    <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=400" class="w-full h-full object-cover">
-                                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100"></div>
-                                    <div class="absolute bottom-3 left-3 right-3 text-white">
-                                        <div class="flex gap-1 mb-2">
-                                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#Cat</span>
-                                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#Indoor</span>
-                                        </div>
-                                        <span class="inline-block w-2 h-2 rounded-full bg-ai mr-1"></span> <span class="text-xs font-bold">AI Verdict</span>
-                                    </div>
-                                </div>
-                                <div class="min-w-[200px] h-full relative rounded-lg overflow-hidden group snap-center border border-border shadow-sm">
-                                    <img src="https://images.unsplash.com/photo-1472214103451-9374bd1c7dd1?q=80&w=400" class="w-full h-full object-cover">
-                                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100"></div>
-                                    <div class="absolute bottom-3 left-3 right-3 text-white">
-                                        <div class="flex gap-1 mb-2">
-                                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#Scene</span>
-                                            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#Nature</span>
-                                        </div>
-                                        <span class="inline-block w-2 h-2 rounded-full bg-human mr-1"></span> <span class="text-xs font-bold">Real Verdict</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Word Cloud -->
-                            <div class="lg:col-span-5 bg-white border border-border rounded-lg shadow-sm p-4 relative overflow-hidden">
-                                <h3 class="absolute top-3 left-4 text-xs font-bold text-gray-400 z-10">HOT ENTITIES</h3>
-                                <div id="chart-wordcloud" style="width: 100%; height: 100%;"></div>
-                            </div>
+                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Hot Entities Distribution</h2>
+                        <div class="bg-white border border-border rounded-lg shadow-sm p-6 relative" style="height: 400px;">
+                            <h3 class="absolute top-3 left-4 text-xs font-bold text-gray-400 z-10 uppercase">Most Discussed Visual Elements</h3>
+                            <div id="chart-wordcloud" style="width: 100%; height: 100%;"></div>
                         </div>
+                    </div>
+
+                    <!-- 2.1.2 Gallery -->
+                    <div class="mb-16">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Example Images Under Discussion</h2>
+                        <div class="flex gap-4 overflow-x-auto pb-2 no-scrollbar snap-x" id="gallery-container"></div>
                     </div>
 
                     <!-- 2.2 Argumentation Methods -->
                     <div class="mb-16">
-                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6">2.2 Argumentation Strategies</h2>
+                        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6">Argumentation Strategies Analysis</h2>
 
-                        <!-- 2.2.0 Strategy Cards -->
-                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-10">
-                            <div class="bg-white p-3 rounded border border-border hover:border-primary transition-colors cursor-default group">
-                                <div class="w-8 h-8 rounded bg-blue-50 text-blue-500 flex items-center justify-center mb-2 text-lg">🧬</div>
-                                <div class="font-bold text-[10px] uppercase text-gray-600 mb-1">Anatomy</div>
-                                <div class="text-[10px] text-gray-400 leading-tight">Biologically impossible structures.</div>
-                            </div>
-                            <div class="bg-white p-3 rounded border border-border hover:border-primary transition-colors cursor-default group">
-                                <div class="w-8 h-8 rounded bg-green-50 text-green-500 flex items-center justify-center mb-2 text-lg">🔍</div>
-                                <div class="font-bold text-[10px] uppercase text-gray-600 mb-1">Details</div>
-                                <div class="text-[10px] text-gray-400 leading-tight">Object consistency & integrity.</div>
-                            </div>
-                            <div class="bg-white p-3 rounded border border-border hover:border-primary transition-colors cursor-default group">
-                                <div class="w-8 h-8 rounded bg-yellow-50 text-yellow-500 flex items-center justify-center mb-2 text-lg">🎨</div>
-                                <div class="font-bold text-[10px] uppercase text-gray-600 mb-1">Style</div>
-                                <div class="text-[10px] text-gray-400 leading-tight">Visual texture & aesthetics.</div>
-                            </div>
-                            <!-- More cards... -->
-                             <div class="bg-white p-3 rounded border border-border hover:border-primary transition-colors cursor-default group">
-                                <div class="w-8 h-8 rounded bg-red-50 text-red-500 flex items-center justify-center mb-2 text-lg">📚</div>
-                                <div class="font-bold text-[10px] uppercase text-gray-600 mb-1">Knowledge</div>
-                                <div class="text-[10px] text-gray-400 leading-tight">External comparison.</div>
-                            </div>
+                        <!-- 2.2.0 Strategy Explanations (All 7) -->
+                        <div class="mb-10">
+                            <h3 class="text-xs font-bold text-gray-500 uppercase mb-4">Seven Argumentation Categories</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="strategy-cards"></div>
                         </div>
 
                         <!-- 2.2.1 Radar Chart -->
                         <div class="mb-12">
                             <div class="glass-panel p-6 rounded-lg relative">
-                                <h3 class="absolute top-4 left-6 text-xs font-bold text-gray-500 uppercase">Strategy Distribution (AI vs Real)</h3>
+                                <h3 class="absolute top-4 left-6 text-xs font-bold text-gray-500 uppercase">Strategy Distribution Comparison (AI vs Real)</h3>
                                 <div id="chart-radar" style="width: 100%; height: 400px;"></div>
                             </div>
                         </div>
 
-                        <!-- 2.2.2 & 2.2.3 Flow Analysis -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-                            <div class="bg-white p-5 rounded-lg border border-border shadow-sm">
-                                <h3 class="text-xs font-bold text-gray-500 mb-4 uppercase">Top Strategies by Verdict (Bar)</h3>
-                                <div id="chart-bar-stacked" style="width: 100%; height: 300px;"></div>
-                            </div>
-                            <div class="bg-white p-5 rounded-lg border border-border shadow-sm">
-                                <h3 class="text-xs font-bold text-gray-500 mb-4 uppercase">Entity → Descriptor Flow</h3>
-                                <div id="chart-sankey" style="width: 100%; height: 300px;"></div>
+                        <!-- 2.2.2 Top Descriptor Frequency Charts -->
+                        <div class="mb-12">
+                            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Top Descriptor Frequencies by Verdict</h2>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- AI Descriptors -->
+                                <div class="bg-white p-6 rounded-lg border border-border shadow-sm">
+                                    <div class="border-l-4 border-ai pl-3 mb-4">
+                                        <h3 class="text-xs font-bold text-ai uppercase">AI Verdict - Top 15 Descriptors</h3>
+                                    </div>
+                                    <div id="chart-ai-descriptors" style="width: 100%; height: 450px;"></div>
+                                </div>
+
+                                <!-- Real Descriptors -->
+                                <div class="bg-white p-6 rounded-lg border border-border shadow-sm">
+                                    <div class="border-l-4 border-human pl-3 mb-4">
+                                        <h3 class="text-xs font-bold text-human uppercase">Real Verdict - Top 15 Descriptors</h3>
+                                    </div>
+                                    <div id="chart-real-descriptors" style="width: 100%; height: 450px;"></div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- 2.2.4 Visual Examples -->
+                        <!-- 2.2.3 Entity → Descriptor Flow Analysis - Separate for AI and Real -->
                         <div class="mb-12">
-                            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">2.2.4 Specific Visual Analysis</h2>
-                            
-                            <div class="flex gap-2 mb-4">
-                                <button onclick="switchVisual('person')" class="vis-tab active px-4 py-2 bg-white border border-gray-300 rounded text-xs font-bold hover:bg-gray-50 data-[active=true]:bg-primary data-[active=true]:text-white data-[active=true]:border-primary" data-active="true" id="tab-person">PERSON</button>
-                                <button onclick="switchVisual('cat')" class="vis-tab px-4 py-2 bg-white border border-gray-300 rounded text-xs font-bold hover:bg-gray-50 data-[active=true]:bg-primary data-[active=true]:text-white data-[active=true]:border-primary" id="tab-cat">CAT</button>
-                                <button onclick="switchVisual('room')" class="vis-tab px-4 py-2 bg-white border border-gray-300 rounded text-xs font-bold hover:bg-gray-50 data-[active=true]:bg-primary data-[active=true]:text-white data-[active=true]:border-primary" id="tab-room">ROOM</button>
-                            </div>
+                            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Entity → Descriptor Flow Analysis</h2>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- AI Flow -->
+                                <div class="bg-white p-6 rounded-lg border border-border shadow-sm">
+                                    <div class="border-l-4 border-ai pl-3 mb-4">
+                                        <h3 class="text-xs font-bold text-ai uppercase">AI Verdict Flow</h3>
+                                    </div>
+                                    <div id="chart-sankey-ai" style="width: 100%; height: 350px;"></div>
+                                </div>
 
-                            <div class="relative w-full h-[500px] bg-gray-100 rounded-lg overflow-hidden border border-border shadow-inner group">
-                                <div id="vis-person" class="vis-content absolute inset-0 transition-opacity duration-500">
-                                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000" class="w-full h-full object-cover opacity-80">
-                                    <div class="vis-point bg-ai/90 border-ai" style="top: 35%; left: 48%;" onmouseenter="showCard('card-p-eye')" onmouseleave="hideCard('card-p-eye')"></div>
-                                    <div class="vis-line" style="top: 35%; left: 48%; width: 100px; transform: rotate(-20deg);"></div>
-                                    <div id="card-p-eye" class="vis-card hidden" style="top: 25%; left: 58%;">
-                                        <div class="font-bold text-ai mb-1">Entity: Eyes</div>
-                                        <div class="blur-text-reveal text-gray-600 font-mono text-[10px]">Descriptor: Asymmetrical Pupils</div>
+                                <!-- Real Flow -->
+                                <div class="bg-white p-6 rounded-lg border border-border shadow-sm">
+                                    <div class="border-l-4 border-human pl-3 mb-4">
+                                        <h3 class="text-xs font-bold text-human uppercase">Real Verdict Flow</h3>
                                     </div>
-                                    <div class="vis-point bg-ai/90 border-ai" style="top: 80%; left: 30%; width: 20px; height: 20px;" onmouseenter="showCard('card-p-hand')" onmouseleave="hideCard('card-p-hand')"></div>
-                                    <div class="vis-line" style="top: 80%; left: 30%; width: 80px; transform: rotate(180deg);"></div>
-                                    <div id="card-p-hand" class="vis-card hidden" style="top: 75%; left: 15%;">
-                                        <div class="font-bold text-ai mb-1">Entity: Fingers</div>
-                                        <div class="blur-text-reveal text-gray-600 font-mono text-[10px]">Descriptor: Quantity Anomaly</div>
-                                    </div>
-                                </div>
-                                <div id="vis-cat" class="vis-content absolute inset-0 transition-opacity duration-500 opacity-0 pointer-events-none">
-                                    <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=1000" class="w-full h-full object-cover opacity-80">
-                                    <div class="vis-point bg-human/90 border-human" style="top: 50%; left: 50%;" onmouseenter="showCard('card-c-fur')" onmouseleave="hideCard('card-c-fur')"></div>
-                                    <div id="card-c-fur" class="vis-card hidden" style="top: 40%; left: 55%;">
-                                        <div class="font-bold text-human mb-1">Entity: Texture</div>
-                                        <div class="blur-text-reveal text-gray-600 font-mono text-[10px]">Descriptor: Natural Irregularity</div>
-                                    </div>
-                                </div>
-                                <div id="vis-room" class="vis-content absolute inset-0 transition-opacity duration-500 opacity-0 pointer-events-none">
-                                    <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=1000" class="w-full h-full object-cover opacity-80">
-                                    <div class="vis-point bg-ai/90 border-ai" style="top: 20%; left: 20%;" onmouseenter="showCard('card-r-pers')" onmouseleave="hideCard('card-r-pers')"></div>
-                                    <div id="card-r-pers" class="vis-card hidden" style="top: 10%; left: 25%;">
-                                        <div class="font-bold text-ai mb-1">Entity: Ceiling Line</div>
-                                        <div class="blur-text-reveal text-gray-600 font-mono text-[10px]">Descriptor: Non-vanishing Point</div>
-                                    </div>
+                                    <div id="chart-sankey-real" style="width: 100%; height: 350px;"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Summary -->
+                    <div class="bg-human/5 border border-human/20 p-4 rounded-lg text-sm text-gray-700 leading-relaxed">
+                        <strong>Key Findings:</strong>
+                        <ul class="mt-2 space-y-1 ml-4 list-disc" id="key-findings-list"></ul>
+                    </div>
                 </section>
+
             </div>
         </div>
 
-        <!-- === VIEW 2: GAME PREVIEW === -->
+        <!-- ===== VIEW 2: GAME PREVIEW ===== -->
         <div id="view-game" class="absolute inset-0 grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6 p-4 lg:p-6 hidden">
             <!-- LEFT: IMAGE PANEL -->
             <section class="relative bg-white border border-border shadow-sm rounded-lg overflow-hidden flex items-center justify-center group select-none">
                 <!-- Source Badge -->
-                <div id="source-badge" class="absolute top-4 right-4 z-20 hidden badge-enter">
+                <div id="source-badge" class="absolute top-4 right-4 z-20">
                     <div class="flex items-center gap-2 bg-black/80 backdrop-blur-md text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg">
                         <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701z"/></svg>
-                        <span>From r/midjourney</span>
+                        <span>From r/RealOrAI</span>
                     </div>
                 </div>
 
@@ -428,7 +382,7 @@
                         </div>
                         <h3 id="overlay-title" class="text-lg font-bold text-text mb-1">AI Generated</h3>
                         <p id="overlay-subtitle" class="text-xs text-secondary font-medium uppercase tracking-wide">Community Verdict</p>
-                        <div class="mt-4 text-xs text-secondary bg-gray-100 px-3 py-1.5 rounded-full">
+                        <div class="mt-4 text-xs text-secondary bg-gray-100 px-3 py-1.5 rounded-full" id="agreement-text">
                             You agreed with 85%
                         </div>
                     </div>
@@ -448,91 +402,433 @@
                 <div id="interaction-content" class="flex-1 overflow-y-auto no-scrollbar p-6 relative"></div>
 
                 <div id="bottom-nav" class="hidden p-4 border-t border-border bg-gray-50 gap-3 shrink-0 panel-fade-in">
-                    <button onclick="switchView('analysis')" class="flex-1 py-3 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Quit to Analysis</button>
+                    <button onclick="switchView('analysis')" class="flex-1 py-3 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Back to Analysis</button>
                     <button onclick="nextImage()" class="flex-1 py-3 px-4 bg-primary text-white rounded-md text-sm font-semibold hover:bg-primary-dark transition-colors shadow-sm flex items-center justify-center gap-2">Next Image →</button>
                 </div>
             </section>
         </div>
 
-        <!-- Dev Controls for Game -->
-        <div id="dev-controls" class="fixed bottom-4 right-4 z-50 bg-gray-900/90 text-white p-3 rounded-lg shadow-2xl border border-gray-700 backdrop-blur-md hidden">
-            <div class="text-[10px] font-mono text-gray-400 mb-2 uppercase tracking-wider border-b border-gray-700 pb-1">Debug: Select Scenario</div>
-            <div class="flex gap-2">
-                <button onclick="setScenario('reddit')" class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-unsure hover:text-white rounded transition-colors border border-gray-600">Reddit (Unsure)</button>
-                <button onclick="setScenario('ai')" class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-ai hover:text-white rounded transition-colors border border-gray-600">Verified AI</button>
-                <button onclick="setScenario('human')" class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-human hover:text-white rounded transition-colors border border-gray-600">Verified Human</button>
-            </div>
-        </div>
-
     </main>
 
     <script>
-        // --- Navigation & View Switching ---
-        function switchView(viewName) {
-            // Update Nav State
-            document.getElementById('btn-nav-analysis').className = viewName === 'analysis' ? 'px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded shadow-sm transition-colors' : 'px-4 py-1.5 text-xs font-semibold text-secondary hover:text-primary transition-colors hover:bg-white rounded';
-            document.getElementById('btn-nav-game').className = viewName === 'game' ? 'px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded shadow-sm transition-colors' : 'px-4 py-1.5 text-xs font-semibold text-secondary hover:text-primary transition-colors hover:bg-white rounded';
+        // Initialize data
+        const config = VISUALIZATION_CONFIG;
 
-            // Toggle Views
-            document.getElementById('view-analysis').classList.toggle('hidden', viewName !== 'analysis');
-            document.getElementById('view-game').classList.toggle('hidden', viewName !== 'game');
-            document.getElementById('dev-controls').classList.toggle('hidden', viewName !== 'game');
+        // ===== DATA POPULATION FUNCTIONS =====
 
-            // Resize Charts if switching to Analysis
-            if (viewName === 'analysis') {
-                setTimeout(() => {
-                    chartVerdict.resize();
-                    chartTime.resize();
-                    chartScatter.resize();
-                    chartWordCloud.resize();
-                    chartRadar.resize();
-                    chartBarStacked.resize();
-                    chartSankey.resize();
-                }, 100);
-            }
+        function populateDescriptiveStatsTables() {
+            // Basic Stats
+            const basicTbody = document.getElementById('basic-stats-tbody');
+            basicTbody.innerHTML = `
+                <tr><td class="font-semibold">Total Posts</td><td class="font-bold text-primary">${config.overallStats.totalPosts.toLocaleString()}</td></tr>
+                <tr><td class="font-semibold">Time Period</td><td>${config.overallStats.timePeriod}</td></tr>
+                <tr><td class="font-semibold">Unique Authors</td><td>${config.overallStats.uniqueAuthors}</td></tr>
+                <tr><td class="font-semibold">Total Comments</td><td>${config.overallStats.totalComments.toLocaleString()}</td></tr>
+                <tr><td class="font-semibold">Hot Posts (Top 10%)</td><td>${config.overallStats.hotPostsCount} <span class="text-xs text-gray-500">(score ≥ ${config.overallStats.hotPostsThreshold})</span></td></tr>
+            `;
+
+            // Verdict Distribution
+            const verdictTbody = document.getElementById('verdict-stats-tbody');
+            const totalPosts = config.overallStats.totalPosts;
+            verdictTbody.innerHTML = `
+                <tr class="bg-red-50/50">
+                    <td class="font-semibold"><span class="inline-block w-3 h-3 rounded-full bg-ai mr-2"></span>AI</td>
+                    <td class="font-bold">${config.overallStats.verdictDistribution.AI}</td>
+                    <td class="font-mono text-ai">${(config.overallStats.verdictDistribution.AI/totalPosts*100).toFixed(1)}%</td>
+                </tr>
+                <tr class="bg-blue-50/50">
+                    <td class="font-semibold"><span class="inline-block w-3 h-3 rounded-full bg-human mr-2"></span>Real</td>
+                    <td class="font-bold">${config.overallStats.verdictDistribution.Real}</td>
+                    <td class="font-mono text-human">${(config.overallStats.verdictDistribution.Real/totalPosts*100).toFixed(1)}%</td>
+                </tr>
+                <tr class="bg-yellow-50/50">
+                    <td class="font-semibold"><span class="inline-block w-3 h-3 rounded-full bg-unsure mr-2"></span>Unsure</td>
+                    <td class="font-bold">${config.overallStats.verdictDistribution.Unsure}</td>
+                    <td class="font-mono text-unsure">${(config.overallStats.verdictDistribution.Unsure/totalPosts*100).toFixed(1)}%</td>
+                </tr>
+            `;
+
         }
 
-        // --- PART 1: GAME LOGIC ---
-        const scenarios = {
-            'reddit': {
-                source: 'reddit', category: 'unsure',
-                image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=988&auto=format&fit=crop',
-                stats: { ai: 42, human: 58 },
-                comments: [
-                    { user: 'u/pixel_peeper', vote: 'ai', text: 'The hands look weird, fingers are <span class="bg-red-50 text-red-600 px-1 font-medium">anatomically incorrect</span>.' },
-                    { user: 'u/film_grain', vote: 'human', text: 'Lighting is too natural, looks like <span class="bg-green-50 text-green-600 px-1 font-medium">Portra 400</span> grain structure.' },
-                    { user: 'u/mod_bot', vote: 'unsure', text: 'Inconclusive metadata. Perspective lines on the background building seem warped.' }
-                ]
-            },
-            'ai': {
-                source: 'internal', category: 'ai',
-                image: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1074&auto=format&fit=crop',
-                stats: { ai: 98, human: 2 },
-                metadata: { model: 'Midjourney v6.0', prompt: 'A futuristic cyberpunk street view at night, neon lights reflecting on wet pavement, cinematic lighting, photorealistic --ar 16:9' }
-            },
-            'human': {
-                source: 'internal', category: 'human',
-                image: 'https://images.unsplash.com/photo-1472214103451-9374bd1c7dd1?q=80&w=1170&auto=format&fit=crop',
-                stats: { ai: 12, human: 88 },
-                metadata: { author: 'John Doe', location: 'Yosemite National Park', camera: 'Sony A7III, 35mm f/1.4 GM', proofLink: '#' }
-            }
-        };
+        function loadSimulationExample() {
+            const example = config.galleryImages[2]; // Using 1nrcy7c (Portrait with ear anomaly)
+            const imgPath = `data/gallery/${example.filename}`;
 
-        let currentScenarioKey = 'reddit';
+            document.getElementById('sim-image').src = imgPath;
+            document.getElementById('sim-title').textContent = `[HELP] ${example.title} - Is this AI?`;
 
-        function initGame() { setScenario('reddit'); }
+            // Create annotations
+            const annotations = document.getElementById('sim-annotations');
+            example.visualAnnotations.annotations.forEach((anno, idx) => {
+                const color = anno.verdict === 'AI' ? 'red' : 'green';
+                annotations.innerHTML += `
+                    <div id="anno-${idx}" class="annotation-box border-${color}-500"
+                         style="top: ${anno.position.top}; left: ${anno.position.left};
+                                width: ${anno.size.width}; height: ${anno.size.height};">
+                        <span class="absolute -top-6 left-1/2 -translate-x-1/2 bg-${color}-500 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap">
+                            ${anno.entity} (${anno.descriptor})
+                        </span>
+                    </div>
+                `;
+            });
 
-        function setScenario(key) {
-            currentScenarioKey = key;
-            const data = scenarios[key];
-            const imgEl = document.getElementById('main-image');
-            imgEl.src = data.image;
-            imgEl.classList.remove('blur-state');
+            // Create comment stream
+            const stream = document.getElementById('comment-stream');
+            stream.innerHTML = example.topRationales.slice(0, 2).map((rat, idx) => {
+                const verdictClass = rat.verdict === 'AI' ? 'ai bg-red-50 border-red-100' : 'human bg-blue-50 border-blue-100';
+                return `
+                    <div class="comment-item p-3 rounded border border-transparent hover:border-gray-200"
+                         onmouseover="highlight('anno-${idx}')" onmouseout="unhighlight('anno-${idx}')">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-bold text-gray-600">u/${rat.user}</span>
+                            <span class="text-[10px] text-${verdictClass} px-1.5 py-0.5 rounded font-bold border">FOR ${rat.verdict.toUpperCase()}</span>
+                        </div>
+                        <p class="text-sm text-gray-700">${rat.text}</p>
+                    </div>
+                `;
+            }).join('');
+
+            // Start animation
+            animateComments();
+        }
+
+        function animateComments() {
+            const comments = document.querySelectorAll('.comment-item');
+            let idx = 0;
+            setInterval(() => {
+                comments.forEach(c => c.classList.remove('active'));
+                document.querySelectorAll('.annotation-box').forEach(a => a.classList.remove('active'));
+                if (comments[idx]) {
+                    comments[idx].classList.add('active');
+                    document.getElementById(`anno-${idx}`)?.classList.add('active');
+                }
+                idx = (idx + 1) % (comments.length + 1);
+            }, 3000);
+        }
+
+        function highlight(id) { document.getElementById(id)?.classList.add('active'); }
+        function unhighlight(id) { document.getElementById(id)?.classList.remove('active'); }
+
+        function populateGallery() {
+            const container = document.getElementById('gallery-container');
+            container.innerHTML = config.galleryImages.map(img => {
+                const verdictColor = img.botVerdict === 'AI' ? 'ai' : (img.botVerdict === 'Real' ? 'human' : 'unsure');
+                const imgPath = `data/gallery/${img.filename}`;
+
+                return `
+                    <div class="min-w-[200px] h-[300px] relative rounded-lg overflow-hidden group snap-center border border-border shadow-sm">
+                        <img src="${imgPath}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/200x300?text=Image+Not+Found'">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100"></div>
+                        <div class="absolute bottom-3 left-3 right-3 text-white">
+                            <div class="flex gap-1 mb-2 flex-wrap">
+                                ${img.tags.slice(0, 2).map(tag => `
+                                    <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">#${tag}</span>
+                                `).join('')}
+                            </div>
+                            <div class="flex items-center">
+                                <span class="inline-block w-2 h-2 rounded-full bg-${verdictColor} mr-1"></span>
+                                <span class="text-xs font-bold">${img.botVerdict} Verdict</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function populateStrategyCards() {
+            const container = document.getElementById('strategy-cards');
+            container.innerHTML = config.strategies.map(strategy => `
+                <div class="strategy-card bg-white p-4 rounded border border-border hover:border-primary group">
+                    <div class="w-10 h-10 rounded flex items-center justify-center mb-3 text-2xl"
+                         style="background-color: ${strategy.color}20; color: ${strategy.color}">
+                        ${strategy.icon}
+                    </div>
+                    <div class="font-bold text-[11px] uppercase text-gray-700 mb-2">${strategy.name}</div>
+                    <div class="text-[10px] text-gray-500 leading-tight mb-3">${strategy.description}</div>
+                    <div class="text-[9px] text-gray-400 space-y-1">
+                        <div class="font-semibold">Examples:</div>
+                        ${strategy.examples.slice(0, 1).map(ex => `<div class="italic">"${ex}"</div>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function populateSummaries() {
+            document.getElementById('overall-summary').textContent = config.summaryConclusions.overall;
+
+            const findingsList = document.getElementById('key-findings-list');
+            findingsList.innerHTML = config.summaryConclusions.keyFindings.map(finding =>
+                `<li>${finding}</li>`
+            ).join('');
+        }
+
+        // ===== CHART INITIALIZATION =====
+
+        function initCharts() {
+
+            // Hot Entities Word Cloud - Combined entities, scenes, and styles
+            const chartWordCloud = echarts.init(document.getElementById('chart-wordcloud'));
+
+            // Combine all data: entities, scenes, and styles
+            const wordCloudData = [
+                ...config.hotEntities.map(e => ({ name: e.name, value: e.value, type: 'entity' })),
+                ...config.imageKeywords.scenes.map(s => ({ name: s.name, value: s.count, type: 'scene' })),
+                ...config.imageKeywords.styles.map(s => ({ name: s.name, value: s.count, type: 'style' }))
+            ];
+
+            chartWordCloud.setOption({
+                series: [{
+                    type: 'wordCloud',
+                    shape: 'circle',
+                    left: 'center',
+                    top: 'center',
+                    width: '100%',
+                    height: '100%',
+                    right: null,
+                    bottom: null,
+                    sizeRange: [16, 60],
+                    rotationRange: [-45, 45],
+                    rotationStep: 45,
+                    gridSize: 8,
+                    drawOutOfBound: false,
+                    layoutAnimation: true,
+                    textStyle: {
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: 'bold',
+                        color: function(params) {
+                            const item = wordCloudData.find(d => d.name === params.name);
+                            if (item.type === 'entity') return '#D9534F';  // Red for entities
+                            if (item.type === 'scene') return '#5BC0DE';   // Blue for scenes
+                            if (item.type === 'style') return '#10b981';   // Green for styles
+                            return '#6b7280';
+                        }
+                    },
+                    emphasis: {
+                        focus: 'self',
+                        textStyle: {
+                            textShadowBlur: 10,
+                            textShadowColor: '#333'
+                        }
+                    },
+                    data: wordCloudData.map(d => ({ name: d.name, value: d.value }))
+                }]
+            });
+
+            // Radar Chart
+            const chartRadar = echarts.init(document.getElementById('chart-radar'));
+
+            // Map the strategy values in the correct order based on the strategies array
+            const aiRadarValues = config.strategies.map(strategy =>
+                config.strategyDistribution.AI[strategy.name] || 0
+            );
+            const realRadarValues = config.strategies.map(strategy =>
+                config.strategyDistribution.Real[strategy.name] || 0
+            );
+
+            chartRadar.setOption({
+                tooltip: {},
+                legend: {
+                    data: ['AI Verdict', 'Real Verdict'],
+                    bottom: 10
+                },
+                radar: {
+                    indicator: config.strategies.map(s => ({
+                        name: s.name,
+                        max: 30
+                    })),
+                    splitArea: { show: true, areaStyle: { color: ['rgba(255,255,255,0.1)', 'rgba(0,0,0,0.02)'] } },
+                    axisLine: { lineStyle: { color: '#999' } }
+                },
+                series: [{
+                    type: 'radar',
+                    data: [
+                        {
+                            value: aiRadarValues,
+                            name: 'AI Verdict',
+                            itemStyle: { color: '#D9534F' },
+                            areaStyle: { opacity: 0.2 }
+                        },
+                        {
+                            value: realRadarValues,
+                            name: 'Real Verdict',
+                            itemStyle: { color: '#5BC0DE' },
+                            areaStyle: { opacity: 0.2 }
+                        }
+                    ]
+                }]
+            });
+
+            // AI Descriptors Bar Chart
+            const chartAIDescriptors = echarts.init(document.getElementById('chart-ai-descriptors'));
+            const aiDescriptors = config.entityDescriptorData.AI.topDescriptors.slice(0, 15);
+            chartAIDescriptors.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: (params) => `${params[0].name}: ${params[0].value} occurrences`
+                },
+                grid: { left: '25%', right: '8%', bottom: '5%', top: '3%' },
+                xAxis: {
+                    type: 'value',
+                    name: 'Frequency',
+                    nameLocation: 'middle',
+                    nameGap: 25
+                },
+                yAxis: {
+                    type: 'category',
+                    data: aiDescriptors.map(d => d.descriptor).reverse(),
+                    axisLabel: { fontSize: 11 }
+                },
+                series: [{
+                    type: 'bar',
+                    data: aiDescriptors.map(d => d.count).reverse(),
+                    itemStyle: {
+                        color: '#D9534F',
+                        borderRadius: [0, 4, 4, 0]
+                    },
+                    label: {
+                        show: true,
+                        position: 'right',
+                        fontSize: 10,
+                        color: '#666'
+                    }
+                }]
+            });
+
+            // Real Descriptors Bar Chart
+            const chartRealDescriptors = echarts.init(document.getElementById('chart-real-descriptors'));
+            const realDescriptors = config.entityDescriptorData.Real.topDescriptors.slice(0, 15);
+            chartRealDescriptors.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: (params) => `${params[0].name}: ${params[0].value} occurrences`
+                },
+                grid: { left: '25%', right: '8%', bottom: '5%', top: '3%' },
+                xAxis: {
+                    type: 'value',
+                    name: 'Frequency',
+                    nameLocation: 'middle',
+                    nameGap: 25
+                },
+                yAxis: {
+                    type: 'category',
+                    data: realDescriptors.map(d => d.descriptor).reverse(),
+                    axisLabel: { fontSize: 11 }
+                },
+                series: [{
+                    type: 'bar',
+                    data: realDescriptors.map(d => d.count).reverse(),
+                    itemStyle: {
+                        color: '#5BC0DE',
+                        borderRadius: [0, 4, 4, 0]
+                    },
+                    label: {
+                        show: true,
+                        position: 'right',
+                        fontSize: 10,
+                        color: '#666'
+                    }
+                }]
+            });
+
+
+            // Sankey Charts - Separate for AI and Real
+            const chartSankeyAI = echarts.init(document.getElementById('chart-sankey-ai'));
+            const chartSankeyReal = echarts.init(document.getElementById('chart-sankey-real'));
+
+            // Prepare AI sankey data
+            const aiNodes = [];
+            const aiLinks = [];
+            config.entityDescriptorData.AI.topEntities.slice(0, 5).forEach(entity => {
+                aiNodes.push({ name: entity.entity });
+                entity.descriptors.slice(0, 2).forEach(desc => {
+                    if (!aiNodes.find(n => n.name === desc)) {
+                        aiNodes.push({ name: desc });
+                    }
+                    aiLinks.push({
+                        source: entity.entity,
+                        target: desc,
+                        value: Math.floor(entity.count / entity.descriptors.length)
+                    });
+                });
+            });
+
+            chartSankeyAI.setOption({
+                tooltip: { trigger: 'item' },
+                series: {
+                    type: 'sankey',
+                    layout: 'none',
+                    emphasis: { focus: 'adjacency' },
+                    data: aiNodes,
+                    links: aiLinks,
+                    lineStyle: { color: 'source', curveness: 0.5 },
+                    itemStyle: { color: '#D9534F', borderColor: '#D9534F' },
+                    label: { fontSize: 10 }
+                }
+            });
+
+            // Prepare Real sankey data
+            const realNodes = [];
+            const realLinks = [];
+            config.entityDescriptorData.Real.topEntities.slice(0, 5).forEach(entity => {
+                realNodes.push({ name: entity.entity });
+                entity.descriptors.slice(0, 2).forEach(desc => {
+                    if (!realNodes.find(n => n.name === desc)) {
+                        realNodes.push({ name: desc });
+                    }
+                    realLinks.push({
+                        source: entity.entity,
+                        target: desc,
+                        value: Math.floor(entity.count / entity.descriptors.length)
+                    });
+                });
+            });
+
+            chartSankeyReal.setOption({
+                tooltip: { trigger: 'item' },
+                series: {
+                    type: 'sankey',
+                    layout: 'none',
+                    emphasis: { focus: 'adjacency' },
+                    data: realNodes,
+                    links: realLinks,
+                    lineStyle: { color: 'source', curveness: 0.5 },
+                    itemStyle: { color: '#5BC0DE', borderColor: '#5BC0DE' },
+                    label: { fontSize: 10 }
+                }
+            });
+
+            // Resize handler
+            window.addEventListener('resize', () => {
+                chartWordCloud.resize();
+                chartRadar.resize();
+                chartAIDescriptors.resize();
+                chartRealDescriptors.resize();
+                chartSankeyAI.resize();
+                chartSankeyReal.resize();
+            });
+        }
+
+        // ===== GAME FUNCTIONS =====
+
+        let currentGameImageIndex = 0;
+
+        function initGame() {
+            loadGameImage(0);
+        }
+
+        function loadGameImage(index) {
+            currentGameImageIndex = index;
+            const example = config.galleryImages[index];
+            const imgPath = `data/gallery/${example.filename}`;
+
+            document.getElementById('main-image').src = imgPath;
+            document.getElementById('main-image').classList.remove('blur-state');
             document.getElementById('result-overlay').classList.add('hidden');
             document.getElementById('result-overlay').classList.remove('show-overlay');
-            const badge = document.getElementById('source-badge');
-            data.source === 'reddit' ? badge.classList.remove('hidden') : badge.classList.add('hidden');
             document.getElementById('bottom-nav').classList.add('hidden');
+
             renderGuessingState();
         }
 
@@ -545,144 +841,123 @@
                         <p class="text-sm text-gray-500 max-w-xs mx-auto">Look closely at textures, lighting, and anatomical details. What is your verdict?</p>
                     </div>
                     <div class="space-y-3">
-                        <button onclick="submitGuess('ai')" class="w-full group relative flex items-center justify-between p-4 bg-white border-2 border-gray-100 hover:border-ai hover:bg-red-50/30 rounded-lg transition-all duration-200"><span class="font-bold text-gray-700 group-hover:text-ai">It's AI Generated</span><span class="text-xl grayscale group-hover:grayscale-0 transition-all">🤖</span></button>
-                        <button onclick="submitGuess('human')" class="w-full group relative flex items-center justify-between p-4 bg-white border-2 border-gray-100 hover:border-human hover:bg-blue-50/30 rounded-lg transition-all duration-200"><span class="font-bold text-gray-700 group-hover:text-human">It's Real Photo</span><span class="text-xl grayscale group-hover:grayscale-0 transition-all">📷</span></button>
-                        <button onclick="submitGuess('unsure')" class="w-full group relative flex items-center justify-between p-4 bg-white border-2 border-gray-100 hover:border-unsure hover:bg-yellow-50/30 rounded-lg transition-all duration-200"><span class="font-bold text-gray-700 group-hover:text-unsure">I'm Unsure / Discuss</span><span class="text-xl grayscale group-hover:grayscale-0 transition-all">🤔</span></button>
+                        <button onclick="submitGuess('ai')" class="w-full group relative flex items-center justify-between p-4 bg-white border-2 border-gray-100 hover:border-ai hover:bg-red-50/30 rounded-lg transition-all duration-200">
+                            <span class="font-bold text-gray-700 group-hover:text-ai">It's AI Generated</span>
+                            <span class="text-xl grayscale group-hover:grayscale-0 transition-all">🤖</span>
+                        </button>
+                        <button onclick="submitGuess('human')" class="w-full group relative flex items-center justify-between p-4 bg-white border-2 border-gray-100 hover:border-human hover:bg-blue-50/30 rounded-lg transition-all duration-200">
+                            <span class="font-bold text-gray-700 group-hover:text-human">It's Real Photo</span>
+                            <span class="text-xl grayscale group-hover:grayscale-0 transition-all">📷</span>
+                        </button>
+                        <button onclick="submitGuess('unsure')" class="w-full group relative flex items-center justify-between p-4 bg-white border-2 border-gray-100 hover:border-unsure hover:bg-yellow-50/30 rounded-lg transition-all duration-200">
+                            <span class="font-bold text-gray-700 group-hover:text-unsure">I'm Unsure</span>
+                            <span class="text-xl grayscale group-hover:grayscale-0 transition-all">🤔</span>
+                        </button>
                     </div>
                 </div>`;
         }
 
         function submitGuess(guess) {
-            const data = scenarios[currentScenarioKey];
+            const example = config.galleryImages[currentGameImageIndex];
             document.getElementById('main-image').classList.add('blur-state');
+
             const overlay = document.getElementById('result-overlay');
             overlay.classList.remove('hidden');
             setTimeout(() => overlay.classList.add('show-overlay'), 10);
-            
-            const aiPct = data.stats.ai;
-            document.getElementById('donut-chart').style.background = `conic-gradient(#D9534F 0% ${aiPct}%, #E5E7EB ${aiPct}% 100%)`;
+
+            const verdict = example.communityVerdict;
+            const total = verdict.AI + verdict.Real + verdict.Unsure;
+            const aiPct = Math.round((verdict.AI / total) * 100);
+
+            document.getElementById('donut-chart').style.background =
+                `conic-gradient(#D9534F 0% ${aiPct}%, #5BC0DE ${aiPct}% ${aiPct + Math.round((verdict.Real / total) * 100)}%, #F0AD4E ${aiPct + Math.round((verdict.Real / total) * 100)}% 100%)`;
+
             const donutText = document.getElementById('donut-text');
             const title = document.getElementById('overlay-title');
-            
-            if (data.category === 'ai') { donutText.textContent = "AI"; donutText.style.color = "#D9534F"; title.textContent = "Result: AI Generated"; title.className = "text-lg font-bold text-ai mb-1"; }
-            else if (data.category === 'human') { donutText.textContent = "Real"; donutText.style.color = "#5BC0DE"; title.textContent = "Result: Real Photo"; title.className = "text-lg font-bold text-human mb-1"; }
-            else { donutText.textContent = "?"; donutText.style.color = "#F0AD4E"; title.textContent = "Result: Debated"; title.className = "text-lg font-bold text-unsure mb-1"; }
-            
-            renderResultContent(data);
+
+            if (example.botVerdict === 'AI') {
+                donutText.textContent = "AI";
+                donutText.style.color = "#D9534F";
+                title.textContent = "Result: AI Generated";
+                title.className = "text-lg font-bold text-ai mb-1";
+            } else {
+                donutText.textContent = "Real";
+                donutText.style.color = "#5BC0DE";
+                title.textContent = "Result: Real Photo";
+                title.className = "text-lg font-bold text-human mb-1";
+            }
+
+            renderResultContent(example, guess);
             document.getElementById('bottom-nav').classList.remove('hidden');
             document.getElementById('bottom-nav').classList.add('flex');
         }
 
-        function renderResultContent(data) {
+        function renderResultContent(example, userGuess) {
             const container = document.getElementById('interaction-content');
-            let html = `<div class="panel-fade-in pb-4">`;
-            if (data.category === 'ai') html += `<div class="mb-6 pb-4 border-b border-gray-100"><div class="text-xs font-bold text-gray-400 uppercase mb-1">Final Verdict</div><div class="text-2xl font-bold text-ai flex items-center gap-2">AI Generated <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div></div>`;
-            else if (data.category === 'human') html += `<div class="mb-6 pb-4 border-b border-gray-100"><div class="text-xs font-bold text-gray-400 uppercase mb-1">Final Verdict</div><div class="text-2xl font-bold text-human flex items-center gap-2">Real Photograph <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg></div></div>`;
-            else html += `<div class="mb-6 pb-4 border-b border-gray-100"><div class="text-xs font-bold text-gray-400 uppercase mb-1">Final Verdict</div><div class="text-2xl font-bold text-unsure flex items-center gap-2">Community Debated <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg></div></div>`;
+            const correctGuess = userGuess === example.botVerdict.toLowerCase();
 
-            if (data.source === 'reddit') {
-                html += `<div class="space-y-4"><h4 class="font-bold text-sm text-gray-800">Top Rationales</h4>`;
-                data.comments.forEach(c => {
-                    const borderClass = c.vote === 'ai' ? 'border-l-ai' : (c.vote === 'human' ? 'border-l-human' : 'border-l-unsure');
-                    const badgeClass = c.vote === 'ai' ? 'text-ai bg-red-50' : (c.vote === 'human' ? 'text-human bg-blue-50' : 'text-unsure bg-yellow-50');
-                    html += `<div class="pl-3 border-l-4 ${borderClass} py-1"><div class="flex items-center gap-2 mb-1"><span class="text-xs font-bold text-gray-500">${c.user}</span><span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${badgeClass}">${c.vote}</span></div><p class="text-sm text-gray-700 leading-relaxed">${c.text}</p></div>`;
-                });
-                html += `</div>`;
-            } else if (data.category === 'ai') {
-                html += `<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4"><div class="text-[10px] uppercase font-bold text-gray-400 mb-1">Model Architecture</div><div class="text-sm font-mono text-gray-800">${data.metadata.model}</div></div><div class="bg-gray-50 border border-gray-200 rounded-lg p-4 relative group"><div class="text-[10px] uppercase font-bold text-gray-400 mb-2">Generation Prompt</div><div class="text-sm font-mono text-gray-700 leading-relaxed max-h-32 overflow-y-auto">"${data.metadata.prompt}"</div></div>`;
-            } else if (data.category === 'human') {
-                html += `<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 space-y-3"><div><div class="text-[10px] uppercase font-bold text-gray-400 mb-1">Photographer</div><div class="text-sm font-medium text-gray-800">${data.metadata.author}</div></div><div><div class="text-[10px] uppercase font-bold text-gray-400 mb-1">Context</div><div class="text-sm font-medium text-gray-800">${data.metadata.location}</div></div></div>`;
-            }
-            html += `</div>`;
+            let html = `<div class="panel-fade-in pb-4">`;
+            html += `<div class="mb-6 pb-4 border-b border-gray-100">
+                        <div class="text-xs font-bold text-gray-400 uppercase mb-1">Final Verdict</div>
+                        <div class="text-2xl font-bold text-${example.botVerdict === 'AI' ? 'ai' : 'human'} flex items-center gap-2">
+                            ${example.botVerdict === 'AI' ? 'AI Generated 🤖' : 'Real Photo 📷'}
+                        </div>
+                        <div class="mt-2 text-xs ${correctGuess ? 'text-green-600' : 'text-gray-500'}">
+                            ${correctGuess ? '✓ You guessed correctly!' : '✗ Your guess was incorrect'}
+                        </div>
+                     </div>`;
+
+            html += `<div class="space-y-4"><h4 class="font-bold text-sm text-gray-800">Top Community Rationales</h4>`;
+            example.topRationales.slice(0, 3).forEach(rat => {
+                const borderClass = rat.verdict === 'AI' ? 'border-l-ai' : 'border-l-human';
+                const badgeClass = rat.verdict === 'AI' ? 'text-ai bg-red-50' : 'text-human bg-blue-50';
+                html += `<div class="pl-3 border-l-4 ${borderClass} py-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-bold text-gray-500">u/${rat.user}</span>
+                                <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${badgeClass}">${rat.verdict}</span>
+                            </div>
+                            <p class="text-sm text-gray-700 leading-relaxed">${rat.text}</p>
+                         </div>`;
+            });
+            html += `</div></div>`;
+
             container.innerHTML = html;
         }
 
         function nextImage() {
-            const keys = Object.keys(scenarios);
-            const nextIndex = (keys.indexOf(currentScenarioKey) + 1) % keys.length;
-            setScenario(keys[nextIndex]);
+            currentGameImageIndex = (currentGameImageIndex + 1) % config.galleryImages.length;
+            loadGameImage(currentGameImageIndex);
         }
 
+        // ===== VIEW SWITCHING =====
 
-        // --- PART 2: ANALYSIS CHARTS ---
-        // 1.1 Animation
-        function animateComments() {
-            const comments = document.querySelectorAll('.comment-item');
-            let idx = 0;
-            setInterval(() => {
-                comments.forEach(c => c.classList.remove('active'));
-                const annotations = document.querySelectorAll('.annotation-box');
-                annotations.forEach(a => a.classList.remove('active'));
-                if (comments[idx]) {
-                    comments[idx].classList.add('active');
-                    if (idx === 0) document.getElementById('anno-hand').classList.add('active');
-                    if (idx === 1) document.getElementById('anno-light').classList.add('active');
-                }
-                idx = (idx + 1) % (comments.length + 1);
-            }, 3000);
+        function switchView(viewName) {
+            // Update Nav State
+            document.getElementById('btn-nav-analysis').className = viewName === 'analysis'
+                ? 'px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded shadow-sm transition-colors'
+                : 'px-4 py-1.5 text-xs font-semibold text-secondary hover:text-primary transition-colors hover:bg-white rounded';
+            document.getElementById('btn-nav-game').className = viewName === 'game'
+                ? 'px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded shadow-sm transition-colors'
+                : 'px-4 py-1.5 text-xs font-semibold text-secondary hover:text-primary transition-colors hover:bg-white rounded';
+
+            // Toggle Views
+            document.getElementById('view-analysis').classList.toggle('hidden', viewName !== 'analysis');
+            document.getElementById('view-game').classList.toggle('hidden', viewName !== 'game');
+
+            if (viewName === 'game') {
+                initGame();
+            }
         }
-        function highlight(id) { document.getElementById(id).classList.add('active'); }
-        function unhighlight(id) { document.getElementById(id).classList.remove('active'); }
 
-        // Charts
-        const chartVerdict = echarts.init(document.getElementById('chart-verdict'));
-        chartVerdict.setOption({
-            grid: { top: 0, bottom: 20, left: 0, right: 0 },
-            xAxis: { type: 'value', show: false, max: 100 },
-            yAxis: { type: 'category', show: false, data: ['Verdict'] },
-            series: [{ name: 'AI', type: 'bar', stack: 'total', data: [38.7], itemStyle: { color: '#D9534F' }, label: { show: true, formatter: 'AI 39%' } }, { name: 'Human', type: 'bar', stack: 'total', data: [24.9], itemStyle: { color: '#5BC0DE' }, label: { show: true, formatter: 'Real 25%' } }, { name: 'Unsure', type: 'bar', stack: 'total', data: [36.4], itemStyle: { color: '#F0AD4E' }, label: { show: true, formatter: 'Unsure 36%' } }]
+        // ===== INITIALIZATION =====
+        document.addEventListener('DOMContentLoaded', () => {
+            populateDescriptiveStatsTables();
+            loadSimulationExample();
+            populateGallery();
+            populateStrategyCards();
+            populateSummaries();
+            initCharts();
         });
-        const chartTime = echarts.init(document.getElementById('chart-time'));
-        chartTime.setOption({
-            tooltip: { trigger: 'axis' }, grid: { top: 10, bottom: 20, left: 30, right: 10 },
-            xAxis: { type: 'category', data: ['00','04','08','12','16','20'], axisLine: {lineStyle: {color: '#999'}} },
-            yAxis: { type: 'value', splitLine: {lineStyle: {type: 'dashed'}} },
-            series: [{ data: [5, 2, 8, 45, 60, 95], type: 'line', smooth: true, areaStyle: { opacity: 0.2 }, itemStyle: { color: '#567C4D' } }]
-        });
-        const chartScatter = echarts.init(document.getElementById('chart-scatter'));
-        chartScatter.setOption({
-            tooltip: {}, grid: { top: 10, bottom: 20, left: 30, right: 30 }, xAxis: { name: 'Score', splitLine: {show: false} }, yAxis: { name: 'Comments', splitLine: {show: false} },
-            series: [{ name: 'AI', type: 'scatter', data: [[349, 42], [426, 55], [120, 15], [80, 20]], itemStyle: { color: '#D9534F' }, symbolSize: 10 }, { name: 'Real', type: 'scatter', data: [[200, 10], [50, 5], [150, 20]], itemStyle: { color: '#5BC0DE' }, symbolSize: 8 }]
-        });
-        const chartWordCloud = echarts.init(document.getElementById('chart-wordcloud'));
-        chartWordCloud.setOption({
-            series: [{ type: 'treemap', width: '100%', height: '100%', roam: false, nodeClick: false, breadcrumb: { show: false }, itemStyle: { gapWidth: 2, borderColor: '#fff' }, data: [{ name: 'Person', value: 36, itemStyle: { color: '#D9534F' } }, { name: 'Poster', value: 12, itemStyle: { color: '#F0AD4E' } }, { name: 'Cat', value: 7, itemStyle: { color: '#D9534F' } }, { name: 'Room', value: 9, itemStyle: { color: '#5BC0DE' } }, { name: 'Hands', value: 22, itemStyle: { color: '#D9534F' } }, { name: 'Texture', value: 15, itemStyle: { color: '#5BC0DE' } }] }]
-        });
-        const chartRadar = echarts.init(document.getElementById('chart-radar'));
-        chartRadar.setOption({
-            tooltip: {}, legend: { data: ['AI Verdict', 'Real Verdict'], bottom: 0 },
-            radar: { indicator: [{ name: 'Anatomy', max: 30 }, { name: 'Physics', max: 10 }, { name: 'Scene Logic', max: 20 }, { name: 'Ext Knowledge', max: 25 }, { name: 'Art Style', max: 25 }, { name: 'Details', max: 30 }], splitArea: { show: false }, axisLine: { lineStyle: { color: '#999' } } },
-            series: [{ type: 'radar', data: [{ value: [25.5, 7.3, 14.9, 10.8, 15.4, 21.7], name: 'AI Verdict', itemStyle: { color: '#D9534F' }, areaStyle: { opacity: 0.3 } }, { value: [11.1, 4.0, 12.5, 21.1, 21.3, 25.4], name: 'Real Verdict', itemStyle: { color: '#5BC0DE' }, areaStyle: { opacity: 0.3 } }] }]
-        });
-        const chartBarStacked = echarts.init(document.getElementById('chart-bar-stacked'));
-        chartBarStacked.setOption({
-            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, legend: { bottom: 0 }, grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true }, xAxis: { type: 'value', boundaryGap: [0, 0.01] }, yAxis: { type: 'category', data: ['Anatomy', 'Style', 'Details'] },
-            series: [{ name: 'Used for AI', type: 'bar', data: [381, 231, 325], itemStyle: { color: '#D9534F' } }, { name: 'Used for Real', type: 'bar', data: [85, 163, 195], itemStyle: { color: '#5BC0DE' } }]
-        });
-        const chartSankey = echarts.init(document.getElementById('chart-sankey'));
-        chartSankey.setOption({
-            tooltip: { trigger: 'item' },
-            series: { type: 'sankey', layout: 'none', emphasis: { focus: 'adjacency' }, data: [{ name: 'Entity: Fingers' }, { name: 'Entity: Eyes' }, { name: 'Entity: Lighting' }, { name: 'Desc: Quantity Anomaly' }, { name: 'Desc: Asymmetrical' }, { name: 'Desc: Natural' }], links: [{ source: 'Entity: Fingers', target: 'Desc: Quantity Anomaly', value: 8 }, { source: 'Entity: Eyes', target: 'Desc: Asymmetrical', value: 6 }, { source: 'Entity: Lighting', target: 'Desc: Natural', value: 4 }], lineStyle: { color: 'gradient', curveness: 0.5 } }
-        });
-
-        // 2.2.4 Visual Switch Logic
-        function switchVisual(type) {
-            document.querySelectorAll('.vis-tab').forEach(b => { b.setAttribute('data-active', 'false'); b.classList.remove('bg-primary', 'text-white', 'border-primary'); });
-            const activeBtn = document.getElementById('tab-' + type);
-            activeBtn.setAttribute('data-active', 'true');
-            activeBtn.classList.add('bg-primary', 'text-white', 'border-primary');
-            document.querySelectorAll('.vis-content').forEach(c => { c.classList.add('opacity-0', 'pointer-events-none'); });
-            const activeContent = document.getElementById('vis-' + type);
-            activeContent.classList.remove('opacity-0', 'pointer-events-none');
-        }
-        function showCard(id) { document.getElementById(id).classList.remove('hidden'); }
-        function hideCard(id) { document.getElementById(id).classList.add('hidden'); }
-
-        window.addEventListener('resize', () => { chartVerdict.resize(); chartTime.resize(); chartScatter.resize(); chartWordCloud.resize(); chartRadar.resize(); chartBarStacked.resize(); chartSankey.resize(); });
-        
-        // Init
-        initGame();
-        // animateComments(); 
     </script>
 </body>
 </html>
