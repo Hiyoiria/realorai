@@ -513,7 +513,7 @@
             const container = document.getElementById('gallery-container');
             container.innerHTML = config.galleryImages.map(img => {
                 const verdictColor = img.botVerdict === 'AI' ? 'ai' : (img.botVerdict === 'Real' ? 'human' : 'unsure');
-                const imgPath = `data/gallery/${img.filename}`;
+                const imgPath = `static/images/${img.filename}`;
 
                 return `
                     <div class="min-w-[200px] h-[300px] relative rounded-lg overflow-hidden group snap-center border border-border shadow-sm">
