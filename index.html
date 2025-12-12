@@ -821,7 +821,7 @@
         function loadGameImage(index) {
             currentGameImageIndex = index;
             const example = config.galleryImages[index];
-            const imgPath = `data/gallery/${example.filename}`;
+            const imgPath = `static/images/${example.filename}`;
 
             document.getElementById('main-image').src = imgPath;
             document.getElementById('main-image').classList.remove('blur-state');
